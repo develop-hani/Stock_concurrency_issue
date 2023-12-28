@@ -5,6 +5,7 @@
 문제 발생 상황은 master 브랜치에, 각각의 해결 과정은 새로운 브랜치에 정리하였다.
 - [동시성 이슈 발생](https://github.com/develop-hani/Stock_concurrency_issue/tree/master)
 - [Java의 synchronized로 해결](https://github.com/develop-hani/Stock_concurrency_issue/tree/synchronized)
+- [Database의 Lock으로 해결](https://github.com/develop-hani/Stock_concurrency_issue/tree/database)
 
 ## 🤝 동시성 이슈(Concurrency Issue)란?
 
