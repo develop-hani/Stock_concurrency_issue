@@ -7,51 +7,86 @@
 - [Java의 synchronized로 해결](https://github.com/develop-hani/Stock_concurrency_issue/tree/synchronized)
 - [Database의 Lock으로 해결](https://github.com/develop-hani/Stock_concurrency_issue/tree/database)
 
-## 🤝 동시성 이슈(Concurrency Issue)란?
+## ♾️ 해결 방법 2: Database
 
-**하나의 데이터**를 **둘 이상의 thread나 session**이 제어할 때 발생하는 문제이다. <br/>
+### 다양한 Lock의 예시
+1. **Pessimistic lock** </br>
+    Exclusive lock을 걸리면 다른 트랜잭션에서는 lock이 해제되기 전까지 **데이터를 가져갈 수 없다**. </br>
+    **데드락이 걸리는 상황에 주의**해서 사용해야한다. 
+2. **Optimistic lock** </br>
+   **버전을 통해 정합성**을 맞추는 방법이다. </br>
+   데이터를 읽은 후에 update 를 수행할 때 현재 내가 읽은 버전이 맞는지 확인하며 업데이트를 한다.</br>
+   읽은 버전에서 수정사항이 생겼을 경우에는 application에서 다시 읽은 후에 작업을 수행해야 한다.
+3. **Named lock** </br>
+   이름을 가진 metadata locking이다. </br>
+   **이름을 가진 lock 을 획득**한 후 해제할때까지 다른 세션은 이 lock 을 획득할 수 없다. </br> 
+   transaction 이 종료될 때 lock 이 자동으로 해제되지 않아 별도의 명령어로 해제를 수행해주거나 선점시간이 끝나야 해제된다.
+</br>
+table이나 row단위로 lock을 거는 Pessimistic lock과 달리 Named lock은 메타 데이터에 lock을 건다.
 
-/)/) (\(\ <br/>
-( . .) (. . ) <br/>
-( づ🍫⊂ ) <br/>
 
-### 예시 코드
-Test code는 [이곳](https://github.com/develop-hani/Stock_concurrency_issue/blob/master/src/test/java/com/practice/stock/service/StockServiceTest.java)에서 확인할 수 있다. <br/>
-Thread를 이용하여 동시에 100개의 요청을 보낸다.  <br/>
-- **ExecutorService**는 비동기로 실행하는 작업을 단순화하여 사용할 수 있도록 도와주는 Java API이다.
-- **CountDownLatch**는 다른 스레드가 수행하는 작업이 끝날 때까지 기다릴 수 있는 기능을 제공한다.
-
+### Pesimistic lock 활용
+Pessimistic lock을 적용한 코드는 [이전 커밋](https://github.com/develop-hani/Stock_concurrency_issue/tree/8da6ce7917b0d3d160c7ceb972382061a2cd87ca)에서 볼 수 있다.
+1. Pessimistic lock 적용</br>
+Spring data jpa에서는 **`@Lock`을 통해 손쉽게 pessimistic lock을 구현**할 수 있다.
 ```java
-@Test
-public void 동시에_100개_요청() throws InterruptedException {
-    int threadCount = 100;
-    ExecutorService executorService = Executors.newFixedThreadPool(32);
-    CountDownLatch latch = new CountDownLatch(threadCount);
-
-    for (int i = 0; i < threadCount; ++i) {
-        executorService.submit( () -> {
-            try {
-                stockService.decreaseStock(1L, 1L);
-            } finally {
-                latch.countDown();
-            }
-        });
-    }
-    latch.await();
-
-    Stock stock = stockRepository.findById(1L).orElseThrow();
-        
-    assertEquals(0L, stock.getQuantity());
+public interface StockRepository extends JpaRepository<Stock, Long> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Stock s where s.id = :id")
+    Stock findByIdWithPessimisticLock(Long id);
 }
 ```
 
-이 경우  test에 실패한다. (expected: <0> but was: <94>) <br/>
-**Race condition**이 발생했기 때문이다.  <br/>
-Race conditiond은 둘 이상의 Thread에 공유 자원 동시에 접근할 때 발생하는 문제이다.  <br/>
+2. Test code 실행 </br>
+   Test를 성공적으로 실행되는 것을 볼 수 있는데, 실행 중 `for update`라는 부분이 **lock을 걸고 데이터를 가져오는 부분**이다.
+   ![Pessimistic lock 적용](./image/pessimistic%20lock.jpg)
 
-**기대했던 순서**는 Thread1 재고 확인 -> Thread1 재고 감소 -> Thread2 재고 확인 -> Thread2 재고 감소 -> ... 이지만 <br/>
-**실제 실행 순서**는 Thread1 재고 확인 -> Thread2 재고 확인 -> Thread1 재고 감소 -> Thread2 재고 감소 -> ... 이므로 문제가 발생한다. <br/>
-이를 해결하기 위해 **하나의 스레드 작업이 완료된 이후에 다른 스레드 작업**을 하도록한다.
+#### Pessimistic lock의 장점
+- 충돌이 빈번한 경우 Optimistic lock 보다 성능이 좋을 수 있다.
+- lock을 통해 업데이트를 제어하므로 데이터의 정합성이 보장된다.
 
-## ❓ 강의 중 궁금했던 내용
-### save()가 아닌 saveAndFlush()를 사용하는 이유
+#### Pessimistic lock의 단점
+- 별도로 lock을 걸어야 하므로 성능 감소가 있을 수 있다.
+
+### Optimistic lock 활용
+Optimistic lock은 실제로 lock을 이용하지 않고 **버전을 이용**하여 데이터의 정합성을 맞추는 방법이다.</br>
+Optimistic lock을 적용한 커밋은 [이전 커밋](https://github.com/develop-hani/Stock_concurrency_issue/tree/010df79d6ca0b65c71d2ae5a9f3645462721b65e)에서 볼 수 있으며 적용 과정은 아래와 같다.
+</br>
+
+1. Optimistic Lock을 활용하기 위해 Stock Entity에 **version이라는 attribute을 추가**한다. </br>
+    이때 jakarta.persistence package에서 제공하는 annotation을 사용한다.
+    ```java
+    @Version
+    private Long version;
+    ```
+ 
+2. Spring Data JPA에서 제공하는 **`@lock`을 통해 Optimistic Lock을 구현**한다.
+    ```java
+    @Lock(LockModeType.OPTIMISTIC)
+    @Query("select s from Stock s where s.id = :id")
+    Stock findByIdWithOptimisticLock(Long id);
+    ```
+
+3. Optimistic lock은 **실패했을 때 재시도를 해야하므로 facade를 만들어** 그곳에서 service layer의 함수를 호출한다.
+    ```java
+    while (true) {
+        try {
+            optimisticLockStockService.decrease(id, quantity);
+            break;
+        } catch (Exception e) {
+            Thread.sleep(50);
+        }
+    }
+    ```
+#### Optimistic Lock의 장점
+- 별도의 lock을 잡지 않으므로 pessimistic lock보다 성능이 우수하다.
+
+#### Optimistic Lock의 단점
+- update에 실패했을 때의 재시도 로직을 개발자가 직접 작성해야한다.
+
+### Pessimistic Lock vs. Optimistic Lock
+따라서 충돌의 발생 빈도에 따라 Lock을 다르게 사용하는 것을 추천하다.
+- 충돌이 빈번하게 일어날 경우 => Pessimistic Lock
+- 충돌이 적을 경우 => Optimistic Lock
+
+### Named lock 활용
