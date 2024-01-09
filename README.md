@@ -11,6 +11,7 @@
   - [Named Lock 적용](https://github.com/develop-hani/Stock_concurrency_issue/tree/20ddb2299a027f10b6a547aa193e8355ee62ef01)
 - [Redis를 이용하여 해결](https://github.com/develop-hani/Stock_concurrency_issue/tree/redis)
   - [Lettuce 적용](https://github.com/develop-hani/Stock_concurrency_issue/tree/3777ac780c0233acbc5c5952d8a43951fe908054)
+  - [Redisson 적용](https://github.com/develop-hani/Stock_concurrency_issue/tree/08398b1522f48d6b9d225161e54b76cbcce5af4b)
 
 ## 🤝 동시성 이슈(Concurrency Issue)란?
 
