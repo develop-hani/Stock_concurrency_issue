@@ -9,7 +9,7 @@
 
 ## ♾️ 해결 방법 2: Database
 
-### 다양한 Lock의 예시
+### 📋 다양한 Lock의 예시
 1. **Pessimistic lock** </br>
     Exclusive lock을 걸리면 다른 트랜잭션에서는 lock이 해제되기 전까지 **데이터를 가져갈 수 없다**. </br>
     **데드락이 걸리는 상황에 주의**해서 사용해야한다. 
@@ -25,7 +25,7 @@
 table이나 row단위로 lock을 거는 Pessimistic lock과 달리 Named lock은 메타 데이터에 lock을 건다.
 
 
-### Pesimistic lock 활용
+### 😒 Pesimistic lock 활용
 Pessimistic lock을 적용한 코드는 [이전 커밋](https://github.com/develop-hani/Stock_concurrency_issue/tree/8da6ce7917b0d3d160c7ceb972382061a2cd87ca)에서 볼 수 있다.
 1. Pessimistic lock 적용</br>
 Spring data jpa에서는 **`@Lock`을 통해 손쉽게 pessimistic lock을 구현**할 수 있다.
@@ -48,7 +48,7 @@ public interface StockRepository extends JpaRepository<Stock, Long> {
 #### Pessimistic lock의 단점
 - 별도로 lock을 걸어야 하므로 성능 감소가 있을 수 있다.
 
-### Optimistic lock 활용
+### 🌞 Optimistic lock 활용
 Optimistic lock은 실제로 lock을 이용하지 않고 **버전을 이용**하여 데이터의 정합성을 맞추는 방법이다.</br>
 Optimistic lock을 적용한 커밋은 [이전 커밋](https://github.com/develop-hani/Stock_concurrency_issue/tree/010df79d6ca0b65c71d2ae5a9f3645462721b65e)에서 볼 수 있으며 적용 과정은 아래와 같다.
 </br>
@@ -84,9 +84,9 @@ Optimistic lock을 적용한 커밋은 [이전 커밋](https://github.com/develo
 #### Optimistic Lock의 단점
 - update에 실패했을 때의 재시도 로직을 개발자가 직접 작성해야한다.
 
-### Pessimistic Lock vs. Optimistic Lock
+### ⚖️ Pessimistic Lock vs. Optimistic Lock
 따라서 충돌의 발생 빈도에 따라 Lock을 다르게 사용하는 것을 추천하다.
 - 충돌이 빈번하게 일어날 경우 => Pessimistic Lock
 - 충돌이 적을 경우 => Optimistic Lock
 
-### Named lock 활용
+### 🙋🏻 Named lock 활용
