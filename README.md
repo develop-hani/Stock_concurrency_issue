@@ -90,3 +90,65 @@ Optimistic lock을 적용한 커밋은 [이전 커밋](https://github.com/develo
 - 충돌이 적을 경우 => Optimistic Lock
 
 ### 🙋🏻 Named lock 활용
+Named Lock은 이름을 가진 metadata lock으로 **이름을 가진 lock을 획득한 후 해제할 때까지 다른 세션은 이 락을 획득할 수 없**다. </br>
+
+트랜잭션이 종료될 때 **lock이 자동으로 해제되지 않**기 때문에 다음과 같은 상황에서 lock을 해제할 수 있다.
+- 별도의 명령어 사용
+- 선점 시간이 종료
+
+MySQL에서의 Named lock 사용 명령어는 다음과 같다.
+- lock 획득: `get-lock`
+- lock 해제: `release-loak`
+
+#### 강의의 예제 vs. 실무
+강의에서는 편의를 위해 JPA의 Native Query를 사용하고 동일한 data source를 사용한다.
+
+실제로 사용할 때에는 **data source를 분리**하는 것을 추천한다. </br>
+같은 데이터 소스를 사용하면 connection pool이 부족해져 다른 서비스에도 영향을 줄 수 있다.
+
+#### Naed lock 적용 과정
+1. lock을 획득하고 종료하는 LockRepository를 정의한다.
+    ```java
+    public interface LockRepository extends JpaRepository<Stock, Long> {
+    @Query(value = "select get_lock(:key, 3000)", nativeQuery = true)
+    void getLock(String key);
+
+    @Query(value = "select release_lock(:key)", nativeQuery = true)
+    void releaseLock(String key);
+    }
+    ```
+2. StockService 로직을 사용하며 락을 획득하고 해제할 facade를 생성한다.
+    ```java
+    try {
+        lockRepository.getLock(id.toString());
+        stockService.decreaseStock(id, quantity);
+    } finally {
+        lockRepository.releaseLock(id.toString());
+    }
+    ```
+3. StockService는 facade의 transaction과 별도로 실행되어야하므로 propagation을 변경한다.
+    ```java
+    @Transactional(propagation = Propagation.REQUIRES_NEW) // 부모(NamedLockStockFacade)의 transaction과 별도로 실행되어야 하므로 propagation 변경
+    public void decreaseStock(Long id, Long quantity) {
+        // Stock 조회
+        Stock stock = stockRepository.findById(id).orElseThrow();
+        stock.decrease(quantity);
+        stockRepository.saveAndFlush(stock);
+    }
+    ```
+4. 예제에서는 같은 data source를 활용하여 두 로직(재고 감소 & lock의 획득 및 해제)을 실행하므로 connection pool의 사이즈를 증가시킨다.
+    ```java
+    // application.yml 파일
+    spring: 
+      datasource:
+        hikari:
+          maximum-pool-size: 40
+    ```
+#### 사용 방안
+Named lock은 주로 **Distributed lock을 구현**할 때에 사용된다.
+
+#### Named lock의 장점
+- 타임아웃을 구현하기 어려운 Pessimistic lock과 달리 Named lock을 **타임아웃을 구현하기 쉽**다.
+
+#### Nmaed lock의 단점
+- 트랜잭션 종료 시에 락 해제, 세션 관리에 주의해야하기에 구현이 복잡할 수 있다.
