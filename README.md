@@ -67,3 +67,38 @@ Lettuce을 적용한 코드는 [이곳](https://github.com/develop-hani/Stock_co
 #### Lettuce의 단점
 - spin lock 방식이므로 redis에 부하를 줄 수 있음
   => Thread.sleep()을 통해 락 획득 제시도에 텀 주기
+
+### 🚀 Redisson
+![channel](./image/redis_channel.jpg)
+Redisson은 자신이 점유하고 있는 락을 해제할 때 **채널에 메세지를 보내줌**으로써 다른 thread에게 락을 획득하라고 전달한다.
+
+#### 적용 순서
+1. Redisson dependency 추가 </br>
+   `implementation 'org.redisson:redisson-spring-boot-starter:3.25.2'` </br>
+    해당 의존성에서 lock과 관련된 라이브러리를 제공해주므로 별도의 repository를 작성할 필요가 없다.
+2. lock 획득과 해제를 위한 facade 정의
+    ```java
+    RLock lock = redissonClient.getLock(id.toString());
+
+    try {
+        boolean available = lock.tryLock(10, 1, TimeUnit.SECONDS);
+   
+        if (!available) {
+            System.out.println("lock 획득 실패");
+            return;
+        }
+        stockService.decreaseStock(id, quantity);
+    } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+    } finally {
+        lock.unlock();
+    }
+ 
+    ```
+
+#### Redisson의 장점
+- pub-sub 기반으로 redis의 부하를 줄여준다.
+
+#### Redisson의 단점
+- 복잡한 구현 방법
+- 별도의 라이브러리 활용 필요
