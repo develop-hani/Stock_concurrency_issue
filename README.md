@@ -10,51 +10,60 @@
   - [Optimistic Lock 적용](https://github.com/develop-hani/Stock_concurrency_issue/tree/02032b206d009104a6646ee3332be401a82cf25a)
   - [Named Lock 적용](https://github.com/develop-hani/Stock_concurrency_issue/tree/20ddb2299a027f10b6a547aa193e8355ee62ef01)
 
-## 🤝 동시성 이슈(Concurrency Issue)란?
+## ♾️ 해결 방법 3: Redis
+### 🎤 대표적인 라이브러리
+1. **Lettuce**
+  - `setnx`(set if not exist) 명령어를 활용하여 분산락 구현
+    - key와 value를 set할 때, 기존의 값이 없을 때만 set을 진행
+  - spin lock 방식
+    - lock을 획득하려는 thread가 lock을 사용할 수 있는지 반복적으로 확인하면서 lock을 획득
+    - retry 로직을 개발자가 작성
+  ![setnx](./image/redis_setnx.jpg)
 
-**하나의 데이터**를 **둘 이상의 thread나 session**이 제어할 때 발생하는 문제이다. <br/>
+2. **Redisson**
+   - pub-sub 기반의 lock 기반
+     - 채널을 하나 만들고 락을 점유 중인 thread가 락을 획득하려고 대기 중인 thread에게 해제를 알려줌
+     - lettuce와 다르게 락 획득 로직을 개발자가 작성할 필요 없음
 
-/)/) (\(\ <br/>
-( . .) (. . ) <br/>
-( づ🍫⊂ ) <br/>
-
-### 예시 코드
-Test code는 [이곳](https://github.com/develop-hani/Stock_concurrency_issue/blob/master/src/test/java/com/practice/stock/service/StockServiceTest.java)에서 확인할 수 있다. <br/>
-Thread를 이용하여 동시에 100개의 요청을 보낸다.  <br/>
-- **ExecutorService**는 비동기로 실행하는 작업을 단순화하여 사용할 수 있도록 도와주는 Java API이다.
-- **CountDownLatch**는 다른 스레드가 수행하는 작업이 끝날 때까지 기다릴 수 있는 기능을 제공한다.
-
-```java
-@Test
-public void 동시에_100개_요청() throws InterruptedException {
-    int threadCount = 100;
-    ExecutorService executorService = Executors.newFixedThreadPool(32);
-    CountDownLatch latch = new CountDownLatch(threadCount);
-
-    for (int i = 0; i < threadCount; ++i) {
-        executorService.submit( () -> {
-            try {
-                stockService.decreaseStock(1L, 1L);
-            } finally {
-                latch.countDown();
-            }
-        });
+### 🥬 Lettuce
+Lettuce을 적용한 코드는 [이곳](https://github.com/develop-hani/Stock_concurrency_issue/tree/260cc09900b48b3bacdf60471615e971af6e46c2)에서 확인할 수 있다.
+1. Redis dependency 추가 </br>
+    `implementation 'org.springframework.boot:spring-boot-starter-data-redis'`
+2. redis 명령어를 확용하기 위한 redis repository 생성
+    ```java
+    public Boolean lock(Long key) {
+        return redisTemplate
+                .opsForValue()
+                .setIfAbsent(generateKey(key), "lock", Duration.ofMillis(3_000));
     }
-    latch.await();
 
-    Stock stock = stockRepository.findById(1L).orElseThrow();
-        
-    assertEquals(0L, stock.getQuantity());
-}
-```
+    public Boolean unlock(Long key) {
+        return redisTemplate
+                .delete(generateKey(key));
+    }
 
-이 경우  test에 실패한다. (expected: <0> but was: <94>) <br/>
-**Race condition**이 발생했기 때문이다.  <br/>
-Race conditiond은 둘 이상의 Thread에 공유 자원 동시에 접근할 때 발생하는 문제이다.  <br/>
+    private String generateKey(Long key) {
+        return key.toString();
+    }
+    ```
+3. lock 획득과 해제를 위한 facade 정의
+    ```java
+    public void decrease(Long id, Long quantity) throws InterruptedException {
+        while (!redisLockRepository.lock(id)) {
+            Thread.sleep(100);
+        }
 
-**기대했던 순서**는 Thread1 재고 확인 -> Thread1 재고 감소 -> Thread2 재고 확인 -> Thread2 재고 감소 -> ... 이지만 <br/>
-**실제 실행 순서**는 Thread1 재고 확인 -> Thread2 재고 확인 -> Thread1 재고 감소 -> Thread2 재고 감소 -> ... 이므로 문제가 발생한다. <br/>
-이를 해결하기 위해 **하나의 스레드 작업이 완료된 이후에 다른 스레드 작업**을 하도록한다.
+        try {
+            stockService.decreaseStock(id, quantity);
+        } finally {
+            redisLockRepository.unlock(id);
+        }
+    }
+    ```
 
-## ❓ 강의 중 궁금했던 내용
-### save()가 아닌 saveAndFlush()를 사용하는 이유
+#### Lettuce의 장점
+- 간단한 구현
+
+#### Lettuce의 단점
+- spin lock 방식이므로 redis에 부하를 줄 수 있음
+  => Thread.sleep()을 통해 락 획득 제시도에 텀 주기
