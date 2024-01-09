@@ -7,6 +7,7 @@
 - [Java의 synchronized로 해결](https://github.com/develop-hani/Stock_concurrency_issue/tree/synchronized)
 - [Database의 Lock으로 해결](https://github.com/develop-hani/Stock_concurrency_issue/tree/database)
   - [Pessimistic Lock 적용](https://github.com/develop-hani/Stock_concurrency_issue/tree/8da6ce7917b0d3d160c7ceb972382061a2cd87ca)
+  - [Optimistic Lock 적용](https://github.com/develop-hani/Stock_concurrency_issue/tree/02032b206d009104a6646ee3332be401a82cf25a)
 
 ## 🤝 동시성 이슈(Concurrency Issue)란?
 
