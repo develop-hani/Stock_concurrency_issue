@@ -61,3 +61,5 @@ Race conditiond은 둘 이상의 Thread에 공유 자원 동시에 접근할 때
 
 ## ❓ 강의 중 궁금했던 내용
 ### save()가 아닌 saveAndFlush()를 사용하는 이유
+`save()` 사용 시 데이터베이스에 바로 flush되지 않아 race condition이 발생할 수 있다. </br>
+[인프런 강의 질문 게시판](https://www.inflearn.com/questions/655574/%EC%84%9C%EB%B9%84%EC%8A%A4-%EB%A1%9C%EC%A7%81%EC%97%90%EC%84%9C-saveandflush-%EC%A7%88%EB%AC%B8%EC%9E%85%EB%8B%88%EB%8B%A4)에 자세히 나와있다.
